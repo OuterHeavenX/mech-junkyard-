@@ -44,15 +44,15 @@ func _ready() -> void:
 func _load_frames() -> void:
 	if mode == "player":
 		for f in ["idle0", "idle1", "walk0", "walk1", "walk2", "walk3", "attack"]:
-			_body_frames[f] = load("res://assets/sprites/player/body_%s.png" % f)
+			_body_frames[f] = RawLoader.load_texture("res://assets/sprites/player/body_%s.png" % f)
 		for aid in PLAYER_ARMS:
 			_arm_frames[aid] = {
-				"rest": load("res://assets/sprites/player/arm_%s_rest.png" % aid),
-				"attack": load("res://assets/sprites/player/arm_%s_attack.png" % aid),
+				"rest": RawLoader.load_texture("res://assets/sprites/player/arm_%s_rest.png" % aid),
+				"attack": RawLoader.load_texture("res://assets/sprites/player/arm_%s_attack.png" % aid),
 			}
 	else:
 		for f in ["idle", "walk0", "walk1", "walk2", "walk3", "attack"]:
-			_body_frames[f] = load("res://assets/sprites/enemies/%s_%s.png" % [etype, f])
+			_body_frames[f] = RawLoader.load_texture("res://assets/sprites/enemies/%s_%s.png" % [etype, f])
 
 
 func _process(delta: float) -> void:

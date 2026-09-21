@@ -15,7 +15,7 @@ var _music: AudioStreamPlayer
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for n in SFX:
-		var s: AudioStream = load("res://assets/audio/%s.wav" % n)
+		var s: AudioStream = RawLoader.load_wav("res://assets/audio/%s.wav" % n)
 		if s != null:
 			_streams[n] = s
 	for i in 10:
@@ -24,7 +24,7 @@ func _ready() -> void:
 		add_child(p)
 		_pool.append(p)
 	_music = AudioStreamPlayer.new()
-	var loop: AudioStream = load("res://assets/audio/ambient_loop.wav")
+	var loop: AudioStream = RawLoader.load_wav("res://assets/audio/ambient_loop.wav")
 	if loop != null:
 		_music.stream = loop
 		_music.volume_db = -10.0

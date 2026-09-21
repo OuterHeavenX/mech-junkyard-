@@ -34,6 +34,26 @@ func _run(game: MechGame) -> void:
 	var wave1_total: int = game.spawn_queue.size() + get_nodes_in_group("enemies").size()
 	check(wave1_total == 3, "wave 1 has 3 enemies (queued+alive=%d)" % wave1_total)
 
+	# Sprite visibility regression (v2 shipped invisible mechs: load("res://...png")
+	# fails without a working editor import, so textures must decode via RawLoader).
+	var pv: SpriteMech = player.visual
+	check(pv != null, "player has a SpriteMech visual")
+	for i in 5:
+		await physics_frame
+	var ptex: Texture2D = pv._body.texture
+	check(ptex != null, "player body texture loaded (mech visible, not invisible)")
+	if ptex != null:
+		check(ptex.get_size().x > 100.0 and ptex.get_size().y > 100.0,
+			"player body texture has real dimensions (%s)" % str(ptex.get_size()))
+	check(pv.visible and pv._body.visible, "player visual nodes visible")
+	check(pv.modulate.a > 0.0, "player visual not transparent")
+	for aid in SpriteMech.PLAYER_ARMS:
+		var at: Texture2D = RawLoader.load_texture("res://assets/sprites/player/arm_%s_rest.png" % aid)
+		check(at != null and at.get_size().x > 50.0, "player arm texture loads: %s" % aid)
+	for et in ["walker", "speeder", "crusher", "gunner", "charger"]:
+		var etx: Texture2D = RawLoader.load_texture("res://assets/sprites/enemies/%s_idle.png" % et)
+		check(etx != null and etx.get_size().x > 100.0, "enemy texture loads: %s" % et)
+
 	# Spawn a walker right next to the player and kill it.
 	game.spawn_enemy("walker", player.position.x + 150.0)
 	for i in 25:
@@ -122,6 +142,9 @@ func _run(game: MechGame) -> void:
 	var seen := {}
 	for foe in get_nodes_in_group("enemies"):
 		seen[(foe as EnemyMech).etype] = true
+		var ev: SpriteMech = (foe as EnemyMech).visual
+		check(ev != null and ev._body.texture != null,
+			"spawned '%s' has a loaded body texture" % (foe as EnemyMech).etype)
 		(foe as EnemyMech).take_damage(9999.0, 1.0, false)
 	for et in ["gunner", "charger", "speeder", "crusher"]:
 		check(seen.get(et, false), "enemy type '%s' spawned and AI ticked" % et)
