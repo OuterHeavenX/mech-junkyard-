@@ -66,4 +66,13 @@ func _run(game: MechGame) -> void:
 		for i in 12:
 			await physics_frame
 	await _shot(OUT + "03_pickup.png")
+
+	# Shop: clear the wave and capture the scrap shop UI.
+	for foe in get_nodes_in_group("enemies"):
+		(foe as EnemyMech).take_damage(9999.0, 1.0, false)
+	game.spawn_queue.clear()
+	game.scrap = 120
+	for i in 25:
+		await physics_frame
+	await _shot(OUT + "04_shop.png")
 	quit()

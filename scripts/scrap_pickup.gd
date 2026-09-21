@@ -43,6 +43,7 @@ func _on_body(b: Node2D) -> void:
 		var p := b as PlayerMech
 		p.game.add_scrap(1)
 		p.heal(1.0)
+		p.game.sfx("scrap_tick", -10.0)
 		queue_free()
 
 

@@ -7,14 +7,19 @@ const WAVES: Array = [
 	{"walker": 3},
 	{"walker": 4, "speeder": 2},
 	{"walker": 4, "speeder": 3, "crusher": 1},
-	{"walker": 5, "speeder": 4, "crusher": 2},
-	{"walker": 6, "speeder": 5, "crusher": 3},
+	{"walker": 4, "speeder": 3, "crusher": 1, "gunner": 2},
+	{"walker": 5, "speeder": 4, "crusher": 2, "gunner": 2, "charger": 2},
 ]
+
+const ENEMY_NAMES := {"walker": "RUST WALKER", "speeder": "SPEEDER",
+	"crusher": "CRUSHER", "gunner": "GUNNER", "charger": "CHARGER"}
 
 const DROP_POOLS: Dictionary = {
 	"walker": [["arm", "rusty_fist"], ["leg", "spring_legs"], ["core", "armor_core"], ["leg", "turbo_legs"]],
 	"speeder": [["leg", "turbo_legs"], ["core", "magnet_core"], ["arm", "buzzsaw"], ["leg", "spring_legs"]],
 	"crusher": [["arm", "crusher_fist"], ["arm", "cannon_arm"], ["core", "regen_core"], ["core", "armor_core"]],
+	"gunner": [["arm", "cannon_arm"], ["core", "magnet_core"], ["leg", "turbo_legs"], ["core", "regen_core"]],
+	"charger": [["arm", "crusher_fist"], ["leg", "spring_legs"], ["core", "armor_core"], ["arm", "buzzsaw"]],
 }
 
 var player: PlayerMech
@@ -25,11 +30,12 @@ var floor_y := 280.0
 var wave_idx := 0
 var spawn_queue: Array = []
 var spawn_t := 0.0
-var intermission := 0.0
 var scrap := 0
 var shake := 0.0
-var state := "fight" # fight | intermission | over | victory
+var state := "fight" # fight | shop | over | victory
 var rng := RandomNumberGenerator.new()
+var _lamps: Array = []
+var _lamp_t := 0.0
 
 
 func _ready() -> void:
@@ -52,6 +58,7 @@ func _ready() -> void:
 	# TouchControls looked for the group in player._ready, which ran before it
 	# existed — re-link now.
 	player.touch = touch
+	_setup_lighting()
 	start_wave(0)
 	refresh_hud()
 
@@ -74,6 +81,57 @@ func _add_keys(action: String, keys: Array) -> void:
 		InputMap.action_add_event(action, ev)
 
 
+func spawn_dust(pos: Vector2) -> void:
+	var p := CPUParticles2D.new()
+	p.amount = 9
+	p.lifetime = 0.55
+	p.one_shot = true
+	p.explosiveness = 0.9
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 14.0
+	p.spread = 160.0
+	p.direction = Vector2(0, -1)
+	p.initial_velocity_min = 60.0
+	p.initial_velocity_max = 190.0
+	p.gravity = Vector2(0, 260)
+	p.damping_min = 60.0
+	p.damping_max = 140.0
+	p.scale_amount_min = 4.0
+	p.scale_amount_max = 9.0
+	p.color = Color(0.62, 0.57, 0.5, 0.55)
+	p.position = pos + Vector2(0, -6)
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(p.queue_free)
+
+
+func _lamp_texture() -> Texture2D:
+	var img := Image.create(128, 128, false, Image.FORMAT_RGBA8)
+	for y in 128:
+		for x in 128:
+			var d := Vector2(x - 64, y - 64).length() / 64.0
+			var a := clampf(1.0 - d, 0.0, 1.0)
+			a = a * a
+			img.set_pixel(x, y, Color(1.0, 0.62, 0.28, a))
+	return ImageTexture.create_from_image(img)
+
+
+func _setup_lighting() -> void:
+	var cm := CanvasModulate.new()
+	cm.color = Color(0.86, 0.88, 1.0)
+	add_child(cm)
+	# Flickering work-lamps over the fire pits.
+	var tex := _lamp_texture()
+	for f in [Vector2(-420, 240), Vector2(180, 245), Vector2(520, 238)]:
+		var lamp := PointLight2D.new()
+		lamp.texture = tex
+		lamp.texture_scale = 4.2
+		lamp.energy = 0.85
+		lamp.position = f
+		add_child(lamp)
+		_lamps.append(lamp)
+
+
 func _process(delta: float) -> void:
 	# Screen shake.
 	shake = maxf(0.0, shake - delta * 2.2)
@@ -81,6 +139,11 @@ func _process(delta: float) -> void:
 		cam.offset = Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1)) * shake * 14.0
 	else:
 		cam.offset = Vector2.ZERO
+	# Lamp flicker.
+	_lamp_t += delta
+	for i in _lamps.size():
+		var lamp: PointLight2D = _lamps[i]
+		lamp.energy = 0.85 + 0.18 * sin(_lamp_t * 9.0 + i * 2.4) + 0.08 * sin(_lamp_t * 23.0 + i * 5.1)
 	if state == "fight":
 		if not spawn_queue.is_empty():
 			spawn_t -= delta
@@ -92,17 +155,13 @@ func _process(delta: float) -> void:
 			if wave_idx >= WAVES.size() - 1:
 				victory()
 			else:
-				state = "intermission"
-				intermission = 2.8
-				hud.announce("WAVE CLEARED!", Color("7dff9a"))
+				state = "shop"
 				if player != null:
 					player.heal(25.0)
-	elif state == "intermission":
-		intermission -= delta
-		if intermission <= 0.0:
-			wave_idx += 1
-			start_wave(wave_idx)
-			state = "fight"
+				announce("WAVE CLEARED!", Color("7dff9a"))
+				sfx("heal", -4.0)
+				hud.show_shop(true)
+				refresh_hud()
 
 
 func start_wave(i: int) -> void:
@@ -113,7 +172,60 @@ func start_wave(i: int) -> void:
 			spawn_queue.append(etype)
 	spawn_queue.shuffle()
 	spawn_t = 0.5
-	hud.announce("WAVE %d" % (i + 1), Color("ff9a3c"))
+	var bits: Array = []
+	for etype in w:
+		bits.append("%s x%d" % [ENEMY_NAMES.get(etype, etype), int(w[etype])])
+	hud.announce("WAVE %d" % (i + 1), Color("ff9a3c"), "  ·  ".join(bits))
+	sfx("wave_horn", -4.0)
+	refresh_hud()
+
+
+func next_wave() -> void:
+	if state != "shop":
+		return
+	hud.show_shop(false)
+	sfx("ui_click", -4.0)
+	wave_idx += 1
+	start_wave(wave_idx)
+	state = "fight"
+
+
+# --- scrap shop (between waves) ---
+func shop_cost(item: String) -> int:
+	match item:
+		"repair":
+			return 15 + 10 * wave_idx
+		"plating":
+			return 45
+		"crate":
+			return 60
+	return 9999
+
+
+func buy(item: String) -> void:
+	if state != "shop" or player == null or player.dead:
+		return
+	var cost := shop_cost(item)
+	if scrap < cost:
+		announce("NOT ENOUGH SCRAP", Color("e05252"))
+		sfx("ui_click", -8.0, 0.7)
+		return
+	scrap -= cost
+	match item:
+		"repair":
+			player.heal(50.0)
+			popup("+50 HP", player.position + Vector2(0, -170), Color("7dff9a"))
+		"plating":
+			player.max_hp += 25.0
+			player.heal(25.0)
+			popup("MAX HP +25", player.position + Vector2(0, -170), Color("7dff9a"))
+		"crate":
+			var pool: Array = []
+			for plist in DROP_POOLS.values():
+				pool.append_array(plist)
+			var pick: Array = pool[rng.randi_range(0, pool.size() - 1)]
+			spawn_part_pickup(pick[0], pick[1], player.position + Vector2(rng.randf_range(-80, 80), -40))
+	sfx("shop_buy", -3.0)
 	refresh_hud()
 
 
@@ -134,6 +246,7 @@ func on_enemy_died(e: EnemyMech) -> void:
 	var t: Dictionary = EnemyMech.TYPES[e.etype]
 	spawn_debris(base, [t["body"], t["dark"], t["accent"]], 12 if e.etype != "crusher" else 18)
 	spawn_sparks(base, Color(1, 0.6, 0.2), 14)
+	sfx("explosion", -4.0)
 	add_shake(0.3 if e.etype != "crusher" else 0.55)
 	popup("WRECKED", base + Vector2(0, -60), Color("ffd75e"))
 	# Scrap burst.
@@ -199,6 +312,14 @@ func popup(text: String, pos: Vector2, col: Color) -> void:
 
 func announce(text: String, col: Color = Color.WHITE) -> void:
 	hud.announce(text, col)
+
+
+## Null-safe SFX via the AudioMan autoload (avoids a hard compile-time
+## dependency so -s script-mode tests keep working).
+func sfx(sfx_name: String, vol_db := 0.0, pitch := 1.0) -> void:
+	var a := get_tree().root.get_node_or_null("AudioMan")
+	if a != null:
+		a.play(sfx_name, vol_db, pitch)
 
 
 func add_scrap(n: int) -> void:

@@ -26,8 +26,28 @@ arm clean off — go grab a new one.
 
 ## Waves
 
-5 escalating waves: walkers → speeders → crushers. Wave clear heals +25 HP.
-Enemies never drop nothing: every wreck bursts scrap and 1–2 parts.
+5 escalating waves: walkers → speeders → crushers → **gunners** (ranged cannon
+fire) → **chargers** (telegraphed bull-rush). Wave clear opens the **Scrap Shop**
+— spend scrap on Repair (+50 HP), Plating (+25 max HP), or a random Part Crate
+before the next wave. Enemies never drop nothing: every wreck bursts scrap and
+1–2 parts.
+
+## Art & audio (generated, no paid assets)
+
+**Mechs** — 45 side-view sprites rendered from a procedural Blender rig
+(`assets/blender/build_mechs.py`): chunky articulated bodies, walk/idle/attack
+frames for 5 enemy types + the player, 4 swappable arm sets. Regenerate:
+
+```bash
+~/workspace/tools/blender/blender-4.5.3-linux-x64/blender -b -P assets/blender/build_mechs.py
+```
+
+The editable source is `assets/blender/mech_junkyard.blend`. Dusk lighting,
+flickering work lamps, dash/landing dust, and a full industrial ambience round
+out the junkyard mood.
+
+**Audio** — 18 synthesized WAVs (`tools/make_audio.py`): combat hits, damage,
+pickups, UI/shop, dash/jump, wave horn, and a 24-second ambient loop.
 
 ## Run / test
 

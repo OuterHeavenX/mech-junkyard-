@@ -23,7 +23,8 @@ var multi_ticks := 0
 var multi_t := 0.0
 var magnet_r := 90.0
 var dead := false
-var visual: MechVisual
+var visual: SpriteMech
+var _was_air := false
 
 
 func _ready() -> void:
@@ -36,11 +37,8 @@ func _ready() -> void:
 	shape.position = Vector2(0, -70)
 	shape.shape = rect
 	add_child(shape)
-	visual = MechVisual.new()
-	visual.body_col = Color("3fa7c4")
-	visual.dark_col = Color("1d2b33")
-	visual.accent_col = Color("ff9a3c")
-	visual.glow_col = Color("7df9ff")
+	visual = SpriteMech.new()
+	visual.mode = "player"
 	visual.arm_id = str(loadout["arm"])
 	add_child(visual)
 	touch = get_tree().get_first_node_in_group("touch_controls") as TouchControls
@@ -84,6 +82,8 @@ func _physics_process(delta: float) -> void:
 		dash_cd = DASH_CD
 		dash_dir = facing if mx == 0.0 else int(sign(mx))
 		game.spawn_sparks(position + Vector2(0, -60), Color(0.6, 0.9, 1.0), 8)
+		game.spawn_dust(position)
+		game.sfx("dash", -6.0)
 
 	if dash_t > 0.0:
 		dash_t -= delta
@@ -100,11 +100,18 @@ func _physics_process(delta: float) -> void:
 			velocity.y = -720.0
 			jumps_left -= 1
 			game.spawn_sparks(position, Color(0.7, 0.7, 0.7, 0.8), 5)
+			game.sfx("jump", -6.0)
 
 	position += velocity * delta
 	if position.y > floor_y:
 		position.y = floor_y
 		velocity.y = 0.0
+	var now_air := position.y < floor_y - 1.0
+	if _was_air and not now_air:
+		# Just landed.
+		game.spawn_dust(position)
+		game.sfx("land", -8.0)
+	_was_air = now_air
 	position.x = clampf(position.x, -600.0, 600.0)
 
 	# --- attack ---
@@ -141,15 +148,23 @@ func do_attack() -> void:
 	match str(arm["kind"]):
 		"spark", "melee", "heavy":
 			_melee_hit(float(arm["dmg"]), float(arm["range"]), str(arm["kind"]) == "heavy")
+			if str(arm["kind"]) == "heavy":
+				game.sfx("heavy_slam")
+			elif str(arm["kind"]) == "spark":
+				game.sfx("spark_zap", -4.0)
+			else:
+				game.sfx("punch", -3.0)
 		"multi":
 			multi_ticks = int(arm["hits"])
 			multi_t = 0.0
+			game.sfx("saw", -4.0)
 		"ranged":
 			var from := position + Vector2(52.0 * facing, -92)
 			var b := BoltShot.new()
 			b.game = game
 			get_parent().add_child(b)
 			b.setup(from, Vector2(facing, 0), float(arm["dmg"]), true)
+			game.sfx("cannon", -4.0)
 
 
 func _melee_hit(dmg: float, reach: float, heavy: bool) -> void:
@@ -174,6 +189,7 @@ func take_damage(amount: float, from_x: float) -> void:
 		amount *= 1.0 - float(PartsDB.CORES["armor_core"]["armor"])
 	hp -= amount
 	visual.hurt_t = 1.0
+	game.sfx("player_hurt", -4.0)
 	game.popup(str(int(round(amount))), position + Vector2(0, -150), Color("ff6b6b"))
 	game.spawn_sparks(position + Vector2(0, -90), Color(1, 0.4, 0.3), 8)
 	var dir := signf(position.x - from_x)
@@ -195,6 +211,7 @@ func _rip_arm() -> void:
 	loadout["arm"] = "none"
 	game.spawn_part_pickup("arm", old, position + Vector2(randf_range(-40, 40), -70))
 	game.announce("ARM RIPPED OFF!", Color("ff6b6b"))
+	game.sfx("arm_rip")
 	game.refresh_hud()
 
 
@@ -219,6 +236,7 @@ func equip_part(ptype: String, pid: String) -> void:
 		game.call_deferred("spawn_part_pickup", ptype, old, position + Vector2(randf_range(-50, 50), -40))
 	game.announce("EQUIPPED: " + PartsDB.part_name(ptype, pid), PartsDB.part_color(ptype, pid))
 	game.spawn_sparks(position + Vector2(0, -90), PartsDB.part_color(ptype, pid), 12)
+	game.sfx("pickup_clank", -3.0)
 	game.refresh_hud()
 
 

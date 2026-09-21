@@ -113,6 +113,61 @@ func _run(game: MechGame) -> void:
 			await physics_frame
 		print("  ok: bare-wires spark attack works")
 
+	# New enemy types: spawn one of each, let their AI run, no errors.
+	player.hp = 5000.0 # survive the soak
+	for et in ["gunner", "charger", "speeder", "crusher"]:
+		game.spawn_enemy(et, player.position.x + 220.0)
+	for i in 120:
+		await physics_frame
+	var seen := {}
+	for foe in get_nodes_in_group("enemies"):
+		seen[(foe as EnemyMech).etype] = true
+		(foe as EnemyMech).take_damage(9999.0, 1.0, false)
+	for et in ["gunner", "charger", "speeder", "crusher"]:
+		check(seen.get(et, false), "enemy type '%s' spawned and AI ticked" % et)
+	player.hp = 100.0
+	for i in 20:
+		await physics_frame
+
+	# Shop flow: clear the wave -> shop opens -> buy -> next wave.
+	for e2 in get_nodes_in_group("enemies"):
+		(e2 as EnemyMech).take_damage(9999.0, 1.0, false)
+	game.spawn_queue.clear()
+	for i in 20:
+		await physics_frame
+	check(game.state == "shop", "wave clear opens the scrap shop (state=%s)" % game.state)
+	check(game.hud.shop_panel.visible, "shop panel visible")
+	game.scrap = 500
+	player.hp = 40.0
+	game.buy("repair")
+	check(player.hp > 40.0, "shop repair heals (hp=%.0f)" % player.hp)
+	var mhp := player.max_hp
+	game.buy("plating")
+	check(player.max_hp > mhp, "shop plating raises max HP")
+	game.buy("crate")
+	check(game.scrap == 500 - 15 - 45 - 60, "shop purchases deduct scrap (scrap=%d)" % game.scrap)
+	# Spawn-on-demand: clear the field, drop a buzzsaw arm, and confirm it
+	# shows up (leftover drops may vacuum/swap mid-test, so match by part).
+	for p in get_nodes_in_group("pickups"):
+		p.queue_free()
+	for i in 5:
+		await physics_frame
+	player.position = Vector2(-500, game.floor_y)
+	player.velocity = Vector2.ZERO
+	for i in 5:
+		await physics_frame
+	game.spawn_part_pickup("arm", "buzzsaw", Vector2(-100, game.floor_y))
+	for i in 10:
+		await physics_frame
+	var saw_found: bool = str(player.loadout["arm"]) == "buzzsaw"
+	for pk in get_nodes_in_group("pickups"):
+		if pk is PartPickup and pk.part_id == "buzzsaw":
+			saw_found = true
+	check(saw_found, "part pickups spawn on demand")
+	game.next_wave()
+	check(game.state == "fight" and game.wave_idx == 1, "next wave starts (wave 2, fight state)")
+	check(not game.hud.shop_panel.visible, "shop panel hidden on wave start")
+
 	if fails.is_empty():
 		print("TEST PASS: all checks ok")
 	else:
