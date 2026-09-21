@@ -74,5 +74,10 @@ func _run(game: MechGame) -> void:
 	game.scrap = 120
 	for i in 25:
 		await physics_frame
+	# Simulate an iPhone: force the touch layer on. With the overlap fix the shop
+	# must hide it, so no ATK/JUMP/DASH buttons bleed through the panel.
+	game.touch.active = true
+	game.touch.visible = true
+	game.hud.show_shop(true)
 	await _shot(OUT + "04_shop.png")
 	quit()

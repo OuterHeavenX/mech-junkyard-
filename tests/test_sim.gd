@@ -160,6 +160,14 @@ func _run(game: MechGame) -> void:
 		await physics_frame
 	check(game.state == "shop", "wave clear opens the scrap shop (state=%s)" % game.state)
 	check(game.hud.shop_panel.visible, "shop panel visible")
+	# Touch-controls/shop overlap regression: simulate an active touch layer,
+	# reopen the shop, and confirm the controls hide (and restore on close).
+	game.touch.active = true
+	game.touch.visible = true
+	game.hud.show_shop(true)
+	check(not game.touch.visible, "touch controls hidden while shop is open")
+	game.hud.show_shop(false)
+	check(game.touch.visible, "touch controls restored when shop closes")
 	game.scrap = 500
 	player.hp = 40.0
 	game.buy("repair")

@@ -158,6 +158,10 @@ func _build_shop() -> void:
 
 func show_shop(v: bool) -> void:
 	shop_panel.visible = v
+	# Hide the touch controls while the shop is open: on iPhone the DASH/JUMP/ATK
+	# buttons bled through behind the shop panel and could steal taps.
+	if game != null and game.touch != null:
+		game.touch.visible = game.touch.active and not v
 	if v:
 		refresh_shop()
 
